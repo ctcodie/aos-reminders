@@ -9,13 +9,14 @@ import { processReminders } from 'utils/processReminders'
 import { titleCase } from 'utils/titleCase'
 import { TSupportedFaction } from 'meta/factions'
 import { ISelections, IAllySelections } from 'types/selections'
-import { IArmy } from 'types/army'
+import { IArmy, TAllyArmies } from 'types/army'
 import { ITurnAction } from 'types/data'
 import { without, uniq } from 'lodash'
 
 interface IRemindersProps {
-  allyArmy: IArmy
-  allySelections: IAllySelections
+  allyArmies: TAllyArmies
+  allySelections: { [key: string]: IAllySelections }
+  allyFactionNames: TSupportedFaction[]
   army: IArmy
   factionName: TSupportedFaction
   realmscape_feature: string
@@ -23,10 +24,15 @@ interface IRemindersProps {
 }
 
 const RemindersComponent = (props: IRemindersProps) => {
-  const { factionName, selections, army, realmscape_feature, allyArmy, allySelections } = props
+  const { factionName, selections, army, realmscape_feature, allyArmies, allySelections, allyFactionNames } = props
+
   const reminders = useMemo(() => {
-    return processReminders(army, factionName, selections, realmscape_feature, allyArmy, allySelections)
-  }, [army, factionName, selections, realmscape_feature, allyArmy, allySelections])
+    const allyData = allyFactionNames.map(name => ({
+      allyArmy: allyArmies[name],
+      allySelections: allySelections[name],
+    }))
+    return processReminders(army, factionName, selections, realmscape_feature, allyData)
+  }, [army, factionName, selections, realmscape_feature, allyArmies, allySelections, allyFactionNames])
 
   return (
     <div className="row w-75 mx-auto mt-3 d-block">
@@ -84,13 +90,19 @@ const getTitle = ({
 const VisibilityToggle = (props: { isVisible: boolean; setVisibility: (e) => void }) => {
   const { isVisible, setVisibility } = props
   const VisibilityComponent = isVisible ? MdVisibility : MdVisibilityOff
-  const hideTip = `${isVisible ? `Hidden rules` : `This rule`} will not be printed.`
+  const tipProps = {
+    'data-for': `reminderTooltip`,
+    'data-tip': isVisible ? `Click to hide this rule.` : `This rule will not be printed.`,
+    'data-type': `info`,
+  }
   return (
     <>
-      <IconContext.Provider value={{ size: '1.3em' }}>
-        <VisibilityComponent onClick={setVisibility} data-tip={hideTip} />
-        <ReactTooltip place="bottom" type="info" effect="float" />
-      </IconContext.Provider>
+      <div {...tipProps}>
+        <IconContext.Provider value={{ size: '1.4em' }}>
+          <VisibilityComponent onClick={setVisibility} />
+        </IconContext.Provider>
+        <ReactTooltip id={`reminderTooltip`} />
+      </div>
     </>
   )
 }
@@ -139,7 +151,8 @@ const ActionText = (props: IActionTextProps) => {
 
 const mapStateToProps = (state, ownProps) => ({
   ...ownProps,
-  allyArmy: army.selectors.getAllyArmy(state),
+  allyArmies: army.selectors.getAllyArmies(state),
+  allyFactionNames: selections.selectors.getAllyFactionNames(state),
   allySelections: selections.selectors.getAllySelections(state),
   army: army.selectors.getArmy(state),
   factionName: factionNames.selectors.getFactionName(state),
